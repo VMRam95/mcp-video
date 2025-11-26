@@ -1,0 +1,46 @@
+{
+  "name": "mcp-video",
+  "version": "0.1.0",
+  "description": "MCP server for video analysis - extract frames and transcribe audio for LLM processing",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "video",
+    "ffmpeg",
+    "whisper",
+    "transcription",
+    "claude",
+    "llm",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "openai": "^4.0.0",
+    "sharp": "^0.33.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/fluent-ffmpeg": "^2.1.21",
+    "@types/node": "^20.0.0",
+    "eslint": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
