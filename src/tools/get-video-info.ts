@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import type { VideoMetadata, VideoError } from '../types/index.js';
-import { validateVideoPath, normalizePath } from '../utils/validators.js';
+import { validateVideoPath, resolveVideoPath } from '../utils/validators.js';
 import {
   getVideoInfo as ffprobeGetInfo,
   parseVideoMetadata,
@@ -46,12 +46,22 @@ export async function getVideoInfo(input: GetVideoInfoInput): Promise<GetVideoIn
     };
   }
 
-  const normalizedPath = normalizePath(input.path);
+  // Resolve the path (handles VIDEO_BASE_DIR and missing extensions)
+  const resolvedPath = resolveVideoPath(input.path);
+  if (!resolvedPath) {
+    return {
+      success: false,
+      error: {
+        code: 'FILE_NOT_FOUND',
+        message: `Could not resolve video path: ${input.path}`,
+      },
+    };
+  }
 
   try {
     // Get video info using ffprobe
-    const probeResult = await ffprobeGetInfo(normalizedPath);
-    const metadata = parseVideoMetadata(normalizedPath, probeResult);
+    const probeResult = await ffprobeGetInfo(resolvedPath);
+    const metadata = parseVideoMetadata(resolvedPath, probeResult);
 
     return {
       success: true,
@@ -70,13 +80,13 @@ export async function getVideoInfo(input: GetVideoInfoInput): Promise<GetVideoIn
  */
 export const getVideoInfoToolDefinition = {
   name: 'get_video_info',
-  description: 'Get metadata about a video file including duration, resolution, codec, file size, and more. Does not extract frames or transcribe audio.',
+  description: 'Get metadata about a video file including duration, resolution, codec, file size, and more. Does not extract frames or transcribe audio. You can pass just the video filename (e.g., "demo.mp4" or "demo") if VIDEO_BASE_DIR is configured.',
   inputSchema: {
     type: 'object' as const,
     properties: {
       path: {
         type: 'string',
-        description: 'The path to the video file (absolute or relative path)',
+        description: 'The video filename (e.g., "demo.mp4" or "demo") or full path. If just the name is provided, it will search in the configured VIDEO_BASE_DIR.',
       },
     },
     required: ['path'],

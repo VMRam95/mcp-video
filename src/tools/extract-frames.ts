@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import type { VideoMetadata, ExtractedFrame, VideoError } from '../types/index.js';
-import { validateExtractFramesOptions, normalizePath } from '../utils/validators.js';
+import { validateExtractFramesOptions, resolveVideoPath } from '../utils/validators.js';
 import { cleanupTempDir } from '../utils/file-handler.js';
 import {
   getVideoInfo as ffprobeGetInfo,
@@ -78,13 +78,24 @@ export async function extractFrames(input: ExtractFramesInput): Promise<ExtractF
     };
   }
 
-  const normalizedPath = normalizePath(options.path);
+  // Resolve the path (handles VIDEO_BASE_DIR and missing extensions)
+  const resolvedPath = resolveVideoPath(options.path);
+  if (!resolvedPath) {
+    return {
+      success: false,
+      error: {
+        code: 'FILE_NOT_FOUND',
+        message: `Could not resolve video path: ${options.path}`,
+      },
+    };
+  }
+
   let tempDir: string | null = null;
 
   try {
     // Get video metadata first
-    const probeResult = await ffprobeGetInfo(normalizedPath);
-    const metadata = parseVideoMetadata(normalizedPath, probeResult);
+    const probeResult = await ffprobeGetInfo(resolvedPath);
+    const metadata = parseVideoMetadata(resolvedPath, probeResult);
 
     // Validate time range against video duration
     if (options.start_time !== undefined && options.start_time >= metadata.duration_seconds) {
@@ -99,7 +110,7 @@ export async function extractFrames(input: ExtractFramesInput): Promise<ExtractF
     }
 
     // Extract frames
-    const result = await ffmpegExtractFrames(normalizedPath, {
+    const result = await ffmpegExtractFrames(resolvedPath, {
       interval: options.interval,
       maxFrames: options.max_frames,
       quality: options.quality,
@@ -143,13 +154,13 @@ export async function extractFrames(input: ExtractFramesInput): Promise<ExtractF
  */
 export const extractFramesToolDefinition = {
   name: 'extract_frames',
-  description: 'Extract frames from a video file at specified intervals. Returns video metadata and an array of base64-encoded JPEG frames.',
+  description: 'Extract frames from a video file at specified intervals. Returns video metadata and an array of base64-encoded JPEG frames. You can pass just the video filename (e.g., "demo.mp4" or "demo") if VIDEO_BASE_DIR is configured.',
   inputSchema: {
     type: 'object' as const,
     properties: {
       path: {
         type: 'string',
-        description: 'The path to the video file (absolute or relative path)',
+        description: 'The video filename (e.g., "demo.mp4" or "demo") or full path. If just the name is provided, it will search in the configured VIDEO_BASE_DIR.',
       },
       interval: {
         type: 'number',

@@ -7,6 +7,13 @@ import * as path from 'path';
 import { SUPPORTED_VIDEO_FORMATS, type VideoError, type SupportedVideoFormat } from '../types/index.js';
 
 /**
+ * Get the base directory for videos from environment variable
+ */
+export function getVideoBaseDir(): string | undefined {
+  return process.env.VIDEO_BASE_DIR;
+}
+
+/**
  * Check if a file exists at the given path
  */
 export function fileExists(filePath: string): boolean {
@@ -14,6 +21,83 @@ export function fileExists(filePath: string): boolean {
     return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
   } catch {
     return false;
+  }
+}
+
+/**
+ * Resolve a video path - handles relative paths and missing extensions
+ *
+ * Logic:
+ * 1. If path is absolute and exists → use it
+ * 2. If path is relative → prepend VIDEO_BASE_DIR
+ * 3. If no extension → try all supported extensions
+ *
+ * @returns The resolved absolute path or null if not found
+ */
+export function resolveVideoPath(inputPath: string): string | null {
+  const baseDir = getVideoBaseDir();
+
+  // Helper to check path with optional extension search
+  const findWithExtensions = (basePath: string): string | null => {
+    // First, try the path as-is
+    if (fileExists(basePath)) {
+      return basePath;
+    }
+
+    // If no extension, try all supported formats
+    const ext = path.extname(basePath).toLowerCase();
+    if (!ext) {
+      for (const format of SUPPORTED_VIDEO_FORMATS) {
+        const pathWithExt = basePath + format;
+        if (fileExists(pathWithExt)) {
+          return pathWithExt;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  // Case 1: Absolute path
+  if (path.isAbsolute(inputPath)) {
+    return findWithExtensions(inputPath);
+  }
+
+  // Case 2: Path starts with ~ (home directory)
+  if (inputPath.startsWith('~')) {
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+    const expandedPath = path.join(homeDir, inputPath.slice(1));
+    return findWithExtensions(expandedPath);
+  }
+
+  // Case 3: Relative path - use VIDEO_BASE_DIR if set
+  if (baseDir) {
+    const fullPath = path.join(baseDir, inputPath);
+    return findWithExtensions(fullPath);
+  }
+
+  // Case 4: No base dir, try relative to cwd
+  const cwdPath = path.resolve(inputPath);
+  return findWithExtensions(cwdPath);
+}
+
+/**
+ * List available videos in the base directory
+ */
+export function listAvailableVideos(): string[] {
+  const baseDir = getVideoBaseDir();
+  if (!baseDir || !fs.existsSync(baseDir)) {
+    return [];
+  }
+
+  try {
+    const files = fs.readdirSync(baseDir);
+    return files.filter(file => {
+      const ext = path.extname(file).toLowerCase() as SupportedVideoFormat;
+      return SUPPORTED_VIDEO_FORMATS.includes(ext);
+    });
+  } catch {
+    return [];
   }
 }
 
@@ -33,8 +117,9 @@ export function getFileExtension(filePath: string): string {
 }
 
 /**
- * Validate a video file path
- * Returns null if valid, VideoError if invalid
+ * Validate a video file path and resolve it
+ * Returns { error: null, resolvedPath: string } if valid
+ * Returns { error: VideoError, resolvedPath: null } if invalid
  */
 export function validateVideoPath(filePath: string): VideoError | null {
   // Check if path is provided
@@ -46,21 +131,35 @@ export function validateVideoPath(filePath: string): VideoError | null {
     };
   }
 
-  // Normalize the path
-  const normalizedPath = path.resolve(filePath);
+  // Try to resolve the path (handles VIDEO_BASE_DIR and missing extensions)
+  const resolvedPath = resolveVideoPath(filePath);
 
-  // Check if file exists
-  if (!fileExists(normalizedPath)) {
+  // Check if file was found
+  if (!resolvedPath) {
+    const baseDir = getVideoBaseDir();
+    const availableVideos = listAvailableVideos();
+
+    let suggestion = 'Check that the file path is correct and the file exists.';
+
+    if (baseDir) {
+      suggestion = `Video not found in ${baseDir}.`;
+      if (availableVideos.length > 0) {
+        suggestion += ` Available videos: ${availableVideos.join(', ')}`;
+      } else {
+        suggestion += ' No videos found in this directory.';
+      }
+    }
+
     return {
       code: 'FILE_NOT_FOUND',
-      message: `File not found: ${normalizedPath}`,
-      suggestion: 'Check that the file path is correct and the file exists',
+      message: `Video not found: ${filePath}`,
+      suggestion,
     };
   }
 
   // Check if format is supported
-  if (!isSupportedFormat(normalizedPath)) {
-    const ext = getFileExtension(normalizedPath);
+  if (!isSupportedFormat(resolvedPath)) {
+    const ext = getFileExtension(resolvedPath);
     return {
       code: 'UNSUPPORTED_FORMAT',
       message: `Unsupported video format: ${ext}`,
