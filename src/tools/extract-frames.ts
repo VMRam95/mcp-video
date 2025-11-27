@@ -154,7 +154,15 @@ export async function extractFrames(input: ExtractFramesInput): Promise<ExtractF
  */
 export const extractFramesToolDefinition = {
   name: 'extract_frames',
-  description: 'Extract frames from a video file at specified intervals. Returns video metadata and an array of base64-encoded JPEG frames. You can pass just the video filename (e.g., "demo.mp4" or "demo") if VIDEO_BASE_DIR is configured.',
+  description: `Extract frames from a video file at specified intervals. Returns video metadata and an array of base64-encoded JPEG frames. You can pass just the video filename (e.g., "demo.mp4" or "demo") if VIDEO_BASE_DIR is configured.
+
+IMPORTANT - How to present video analysis:
+- Frames are sequential snapshots from the video timeline
+- Present your analysis as a TEMPORAL NARRATIVE describing what happens in the video
+- Use flow words: "The video begins with...", "Then the user...", "Next...", "Finally..."
+- DO NOT list frames separately (Frame 1, Frame 2...)
+- DO NOT make a static inventory of screens/sections
+- Describe it as a VIDEO with a sequence of events, actions, and transitions`,
   inputSchema: {
     type: 'object' as const,
     properties: {
