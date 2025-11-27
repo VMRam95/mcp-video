@@ -7,10 +7,22 @@ import * as path from 'path';
 import { SUPPORTED_VIDEO_FORMATS, type VideoError, type SupportedVideoFormat } from '../types/index.js';
 
 /**
- * Get the base directory for videos from environment variable
+ * Get the base directory for videos - uses VIDEO_BASE_DIR env var or ~/Videos/mcp-video as default
  */
 export function getVideoBaseDir(): string | undefined {
-  return process.env.VIDEO_BASE_DIR;
+  if (process.env.VIDEO_BASE_DIR) {
+    return process.env.VIDEO_BASE_DIR;
+  }
+  // Default to ~/Videos/mcp-video for convenience
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+  if (homeDir) {
+    const defaultDir = path.join(homeDir, 'Videos', 'mcp-video');
+    // Only return if it exists (don't create it here - that's server's job)
+    if (fs.existsSync(defaultDir)) {
+      return defaultDir;
+    }
+  }
+  return undefined;
 }
 
 /**
