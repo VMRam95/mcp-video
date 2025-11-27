@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCP Video - Video Analysis Tool</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>MCP Video</h1>
+      <p class="subtitle">Video Analysis Tool</p>
+    </header>
+
+    <!-- Step Indicators -->
+    <div class="step-indicators">
+      <div class="step active" data-step="0">
+        <span class="step-number">1</span>
+        <span class="step-label">Upload</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" data-step="1">
+        <span class="step-number">2</span>
+        <span class="step-label">Options</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" data-step="2">
+        <span class="step-number">3</span>
+        <span class="step-label">Frames</span>
+      </div>
+    </div>
+
+    <!-- Wizard Container -->
+    <div class="wizard-container">
+      <div class="wizard-slides" id="wizardSlides">
+
+        <!-- Slide 1: Upload -->
+        <div class="wizard-slide" data-slide="0">
+          <div class="card">
+            <h2>Upload Video</h2>
+
+            <!-- Drop Zone -->
+            <div id="dropZone" class="drop-zone">
+              <div id="dropZoneContent" class="drop-zone-content">
+                <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <p>Drag & drop a video here</p>
+                <p class="drop-zone-hint">or</p>
+                <label class="btn btn-secondary" for="fileInput">Select File</label>
+                <input type="file" id="fileInput" accept="video/*" hidden>
+              </div>
+
+              <!-- Video Preview (shown after upload) -->
+              <div id="videoPreview" class="video-preview" style="display: none;">
+                <div class="preview-thumbnail">
+                  <img id="previewThumbnail" src="" alt="Video thumbnail">
+                  <div class="preview-duration" id="previewDuration"></div>
+                </div>
+                <div class="preview-info">
+                  <div class="preview-header">
+                    <h3 id="previewFilename"></h3>
+                    <button id="btnClearFile" class="btn-clear" title="Remove video">&times;</button>
+                  </div>
+                  <div class="preview-details">
+                    <div class="preview-detail">
+                      <span class="detail-label">Resolution</span>
+                      <span class="detail-value" id="previewResolution"></span>
+                    </div>
+                    <div class="preview-detail">
+                      <span class="detail-label">Duration</span>
+                      <span class="detail-value" id="previewDurationText"></span>
+                    </div>
+                    <div class="preview-detail">
+                      <span class="detail-label">Size</span>
+                      <span class="detail-value" id="previewSize"></span>
+                    </div>
+                    <div class="preview-detail">
+                      <span class="detail-label">Codec</span>
+                      <span class="detail-value" id="previewCodec"></span>
+                    </div>
+                    <div class="preview-detail">
+                      <span class="detail-label">FPS</span>
+                      <span class="detail-value" id="previewFps"></span>
+                    </div>
+                    <div class="preview-detail">
+                      <span class="detail-label">Audio</span>
+                      <span class="detail-value" id="previewAudio"></span>
+                    </div>
+                  </div>
+                  <div class="preview-path">
+                    <span class="detail-label">Saved to</span>
+                    <code id="previewPath"></code>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hidden input for video path -->
+            <input type="hidden" id="videoPath" value="">
+          </div>
+
+          <div class="wizard-nav">
+            <div></div>
+            <button id="btnNextToOptions" class="btn btn-primary" disabled>
+              Next: Extraction Options
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Slide 2: Extraction Options -->
+        <div class="wizard-slide" data-slide="1">
+          <div class="card">
+            <h2>Extraction Options</h2>
+
+            <div class="options-grid">
+              <div class="option">
+                <label for="interval">Interval (seconds)</label>
+                <input type="number" id="interval" value="2" min="0.1" max="60" step="0.1">
+              </div>
+
+              <div class="option">
+                <label for="maxFrames">Max Frames</label>
+                <input type="number" id="maxFrames" value="30" min="1" max="500">
+              </div>
+
+              <div class="option">
+                <label for="quality">Quality (1-100)</label>
+                <input type="number" id="quality" value="75" min="1" max="100">
+              </div>
+
+              <div class="option">
+                <label for="width">Width (pixels)</label>
+                <input type="number" id="width" value="800" min="100" max="3840">
+              </div>
+
+              <div class="option">
+                <label for="startTime">Start Time (s)</label>
+                <input type="number" id="startTime" placeholder="0" min="0" step="0.1">
+              </div>
+
+              <div class="option">
+                <label for="endTime">End Time (s)</label>
+                <input type="number" id="endTime" placeholder="auto" min="0" step="0.1">
+              </div>
+            </div>
+          </div>
+
+          <div class="wizard-nav">
+            <button id="btnBackToUpload" class="btn btn-secondary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+              Back
+            </button>
+            <button id="btnExtract" class="btn btn-primary">
+              Extract Frames
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Slide 3: Results -->
+        <div class="wizard-slide" data-slide="2">
+          <div class="card">
+            <div class="results-header">
+              <h2>Extracted Frames <span id="frameCount"></span></h2>
+              <div class="extraction-summary" id="extractionSummary"></div>
+            </div>
+
+            <!-- Frame Gallery -->
+            <div id="frameGallery" class="gallery"></div>
+
+            <!-- Pagination -->
+            <div id="pagination" class="pagination" style="display: none;">
+              <button id="btnPrevPage" class="btn btn-secondary btn-sm" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon-sm">
+                  <polyline points="15 18 9 12 15 6"/>
+                </svg>
+                Previous
+              </button>
+              <span class="page-info">
+                Page <span id="currentPage">1</span> of <span id="totalPages">1</span>
+              </span>
+              <button id="btnNextPage" class="btn btn-secondary btn-sm">
+                Next
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon-sm">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="wizard-nav">
+            <button id="btnBackToOptions" class="btn btn-secondary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+              Back to Options
+            </button>
+            <button id="btnCopyPath" class="btn-copy">
+              <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+              </svg>
+              Enviar a Claude
+            </button>
+            <button id="btnNewVideo" class="btn btn-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              New Video
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading" class="loading" style="display: none;">
+      <div class="spinner"></div>
+      <p id="loadingText">Processing...</p>
+    </div>
+
+    <!-- Error Display -->
+    <div id="error" class="error" style="display: none;"></div>
+
+    <footer>
+      <p>MCP Video v0.1.0 - Powered by FFmpeg</p>
+    </footer>
+  </div>
+
+  <!-- Modal for full-size image -->
+  <div id="modal" class="modal" style="display: none;">
+    <span class="modal-close">&times;</span>
+    <img id="modalImage" class="modal-content" src="" alt="Full size frame">
+    <div id="modalCaption" class="modal-caption"></div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
