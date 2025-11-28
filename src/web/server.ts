@@ -8,19 +8,20 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { getVideoInfo } from '../tools/get-video-info.js';
 import { extractFrames } from '../tools/extract-frames.js';
 import {
   checkFfmpegAvailable,
   checkFfprobeAvailable,
+  compressVideo,
 } from '../processors/ffmpeg-processor.js';
+import { clearVideoDirectory, createVideoFolder } from '../utils/file-handler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 const HOME_DIR = process.env.HOME || process.env.USERPROFILE || os.homedir();
 const DEFAULT_VIDEO_DIR = path.join(HOME_DIR, 'Videos', 'mcp-video');
 
@@ -72,7 +73,7 @@ async function parseBody(req: http.IncomingMessage): Promise<unknown> {
 /**
  * Parse multipart form data for file upload
  */
-async function parseMultipart(req: http.IncomingMessage): Promise<{ filename: string; filepath: string }> {
+async function parseMultipart(req: http.IncomingMessage): Promise<{ filename: string; filepath: string; folderPath: string; timestamp: string }> {
   return new Promise((resolve, reject) => {
     const contentType = req.headers['content-type'] || '';
     const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/);
@@ -119,17 +120,21 @@ async function parseMultipart(req: http.IncomingMessage): Promise<{ filename: st
         const filenameMatch = headers.match(/filename="([^"]+)"/);
         const originalFilename = filenameMatch ? filenameMatch[1] : 'video.mp4';
 
-        // Generate unique filename and save to upload directory
-        const ext = path.extname(originalFilename);
-        const uniqueId = crypto.randomBytes(8).toString('hex');
-        const filename = `${uniqueId}${ext}`;
+        // Clear video directory before uploading new video
         const uploadDir = getUploadDir();
-        const filepath = path.join(uploadDir, filename);
+        clearVideoDirectory(uploadDir);
+
+        // Create timestamped folder for video and frames
+        const { folderPath, timestamp } = createVideoFolder(uploadDir);
+
+        // Save video in the folder with simplified name
+        const ext = path.extname(originalFilename);
+        const filepath = path.join(folderPath, `video${ext}`);
 
         // Write file
         fs.writeFileSync(filepath, content);
 
-        resolve({ filename: originalFilename, filepath });
+        resolve({ filename: originalFilename, filepath, folderPath, timestamp });
       } catch (error) {
         reject(error);
       }
@@ -216,7 +221,24 @@ async function handleApi(
         return;
       }
 
-      const { filename, filepath } = await parseMultipart(req);
+      const { filename, filepath: originalFilepath, folderPath, timestamp } = await parseMultipart(req);
+
+      // Compress video
+      let filepath = originalFilepath;
+      const compressedPath = path.join(folderPath, 'video_compressed.mp4');
+      try {
+        const compressionResult = await compressVideo(originalFilepath, compressedPath, { crf: 28, preset: 'medium' });
+        // Replace original with compressed if successful
+        if (compressionResult.success) {
+          fs.unlinkSync(originalFilepath);
+          const newFilepath = originalFilepath.replace(/\.[^.]+$/, '.mp4');
+          fs.renameSync(compressedPath, newFilepath);
+          filepath = newFilepath; // Update filepath to compressed version
+        }
+      } catch (e) {
+        // Keep original if compression fails
+        console.error('Compression failed:', e);
+      }
 
       // Get video info
       const infoResult = await getVideoInfo({ path: filepath });
@@ -250,6 +272,8 @@ async function handleApi(
         success: true,
         filename,
         filepath,
+        folderPath,
+        timestamp,
         metadata: infoResult.metadata,
         thumbnail,
         uploadDir: getUploadDir(),
@@ -267,16 +291,92 @@ async function handleApi(
       }
 
       case '/api/extract-frames': {
+        const videoPath = body.path as string;
+        // Extract folder path and create frames directory for persistence
+        const videoFolder = path.dirname(videoPath);
+        const framesDir = path.join(videoFolder, 'frames');
+
         const result = await extractFrames({
-          path: body.path as string,
+          path: videoPath,
           interval: body.interval as number | undefined,
           max_frames: body.max_frames as number | undefined,
           quality: body.quality as number | undefined,
           width: body.width as number | undefined,
           start_time: body.start_time as number | undefined,
           end_time: body.end_time as number | undefined,
+          output_dir: framesDir,
         });
         sendJson(res, result);
+        break;
+      }
+
+      case '/api/get-frames': {
+        const videoDir = getUploadDir();
+        const folders = fs.readdirSync(videoDir).filter(f =>
+          fs.statSync(path.join(videoDir, f)).isDirectory()
+        ).sort().reverse();
+
+        if (folders.length === 0) {
+          sendJson(res, { success: false, error: 'No videos found' });
+          break;
+        }
+
+        const latestFolder = path.join(videoDir, folders[0]);
+        const framesDir = path.join(latestFolder, 'frames');
+
+        if (!fs.existsSync(framesDir)) {
+          sendJson(res, { success: false, error: 'No frames extracted' });
+          break;
+        }
+
+        const frameFiles = fs.readdirSync(framesDir)
+          .filter(f => f.endsWith('.jpg'))
+          .sort();
+
+        const frames = frameFiles.map((f, i) => ({
+          index: i,
+          filename: f,
+          path: path.join(framesDir, f)
+        }));
+
+        sendJson(res, {
+          success: true,
+          folderPath: latestFolder,
+          framesDir,
+          frames
+        });
+        break;
+      }
+
+      case '/api/list-videos': {
+        const videoDir = getUploadDir();
+        if (!fs.existsSync(videoDir)) {
+          sendJson(res, { success: true, videos: [] });
+          break;
+        }
+
+        const folders = fs.readdirSync(videoDir)
+          .filter(f => fs.statSync(path.join(videoDir, f)).isDirectory())
+          .sort()
+          .reverse();
+
+        const videos = folders.map(folder => {
+          const folderPath = path.join(videoDir, folder);
+          const files = fs.readdirSync(folderPath);
+          const videoFile = files.find(f => /\.(mp4|mov|webm|avi)$/i.test(f));
+          const framesDir = path.join(folderPath, 'frames');
+          const hasFrames = fs.existsSync(framesDir) && fs.readdirSync(framesDir).length > 0;
+
+          return {
+            timestamp: folder,
+            folderPath,
+            videoFile: videoFile ? path.join(folderPath, videoFile) : null,
+            hasFrames,
+            frameCount: hasFrames ? fs.readdirSync(framesDir).filter(f => f.endsWith('.jpg')).length : 0
+          };
+        });
+
+        sendJson(res, { success: true, videos });
         break;
       }
 
