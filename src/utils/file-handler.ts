@@ -119,3 +119,41 @@ export function getImageMimeType(format: 'jpeg' | 'jpg' | 'png' | 'webp'): strin
   };
   return mimeTypes[format] || 'image/jpeg';
 }
+
+/**
+ * Clear all contents from a video directory
+ */
+export function clearVideoDirectory(baseDir: string): void {
+  if (!fs.existsSync(baseDir)) {
+    return;
+  }
+
+  const items = fs.readdirSync(baseDir);
+  for (const item of items) {
+    const itemPath = path.join(baseDir, item);
+    fs.rmSync(itemPath, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Create a new video folder with timestamp and frames subdirectory
+ */
+export function createVideoFolder(baseDir: string): { folderPath: string; timestamp: string } {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const folderPath = path.join(baseDir, timestamp);
+  const framesPath = path.join(folderPath, 'frames');
+
+  ensureDir(folderPath);
+  ensureDir(framesPath);
+
+  return { folderPath, timestamp };
+}
+
+/**
+ * Get the frames directory path for a video folder
+ */
+export function getFramesDir(videoFolder: string): string {
+  const framesDir = path.join(videoFolder, 'frames');
+  ensureDir(framesDir);
+  return framesDir;
+}

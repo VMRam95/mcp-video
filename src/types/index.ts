@@ -211,3 +211,87 @@ export interface FFprobeResult {
   streams: FFprobeStream[];
   format: FFprobeFormat;
 }
+
+// ============================================================================
+// Video Folder Types
+// ============================================================================
+
+/**
+ * Structure for a video folder with timestamp naming
+ */
+export interface VideoFolder {
+  /** Folder path */
+  folderPath: string;
+  /** Timestamp used as folder name */
+  timestamp: string;
+  /** Path to the video file */
+  videoPath: string;
+  /** Path to frames directory */
+  framesDir: string;
+}
+
+// ============================================================================
+// Compression Types
+// ============================================================================
+
+/**
+ * Result of video compression
+ */
+export interface CompressionResult {
+  success: boolean;
+  outputPath: string;
+  originalSize: number;
+  compressedSize: number;
+  compressionRatio: number;
+}
+
+// ============================================================================
+// Video Upload Types
+// ============================================================================
+
+/**
+ * Options for video upload and processing
+ */
+export interface VideoUploadOptions {
+  /** Whether to compress the video */
+  compress?: boolean;
+  /** CRF value for compression (0-51, lower = better quality) */
+  crf?: number;
+  /** FFmpeg preset for compression speed */
+  preset?: 'ultrafast' | 'fast' | 'medium' | 'slow';
+  /** Whether to extract frames automatically */
+  extractFrames?: boolean;
+  /** Frame extraction options */
+  frameOptions?: {
+    interval?: number;
+    maxFrames?: number;
+    quality?: number;
+    width?: number;
+  };
+}
+
+// ============================================================================
+// Persistent Frame Types
+// ============================================================================
+
+/**
+ * Persistent frame information (saved to disk)
+ */
+export interface PersistentFrame {
+  index: number;
+  timestamp: string;
+  timestamp_seconds: number;
+  filePath: string;
+  fileName: string;
+}
+
+/**
+ * Result of frame extraction with persistence
+ */
+export interface PersistentFrameExtractionResult {
+  success: boolean;
+  videoFolder: string;
+  framesDir: string;
+  frames: PersistentFrame[];
+  metadata: VideoMetadata;
+}
