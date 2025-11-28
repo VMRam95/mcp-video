@@ -7,7 +7,7 @@
 import { z } from 'zod';
 import type { VideoMetadata, ExtractedFrame, VideoError } from '../types/index.js';
 import { validateExtractFramesOptions, resolveVideoPath } from '../utils/validators.js';
-import { cleanupTempDir } from '../utils/file-handler.js';
+import { cleanupTempDir, ensureDir, listFilesWithExtension, readFileAsBase64, formatDuration } from '../utils/file-handler.js';
 import {
   getVideoInfo as ffprobeGetInfo,
   parseVideoMetadata,
@@ -30,6 +30,8 @@ export const ExtractFramesInputSchema = z.object({
     .describe('Start extraction from this time in seconds'),
   end_time: z.number().min(0).optional()
     .describe('End extraction at this time in seconds'),
+  output_dir: z.string().optional()
+    .describe('Directory to save frames persistently (if not provided, frames are temporary)'),
 });
 
 export type ExtractFramesInput = z.infer<typeof ExtractFramesInputSchema>;
@@ -45,6 +47,8 @@ export interface ExtractFramesResponse {
     quality: number;
     width: number;
   };
+  frame_paths?: string[];
+  output_directory?: string;
 }
 
 export interface ExtractFramesErrorResponse {
@@ -53,6 +57,39 @@ export interface ExtractFramesErrorResponse {
 }
 
 export type ExtractFramesResult = ExtractFramesResponse | ExtractFramesErrorResponse;
+
+/**
+ * Check if frames already exist in a directory
+ */
+function getExistingFrames(dirPath: string): string[] {
+  try {
+    return listFilesWithExtension(dirPath, '.jpg');
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Read existing frames from disk and convert to ExtractedFrame format
+ */
+function readExistingFramesFromDisk(framePaths: string[], interval: number, startTime: number = 0): ExtractedFrame[] {
+  const frames: ExtractedFrame[] = [];
+
+  for (let i = 0; i < framePaths.length; i++) {
+    const frameFile = framePaths[i];
+    const timestampSeconds = startTime + i * interval;
+
+    frames.push({
+      index: i,
+      timestamp: formatDuration(timestampSeconds),
+      timestamp_seconds: timestampSeconds,
+      image: readFileAsBase64(frameFile),
+      mime_type: 'image/jpeg',
+    });
+  }
+
+  return frames;
+}
 
 /**
  * Extract frames from video
@@ -67,6 +104,7 @@ export async function extractFrames(input: ExtractFramesInput): Promise<ExtractF
     width: input.width ?? 800,
     start_time: input.start_time,
     end_time: input.end_time,
+    output_dir: input.output_dir,
   };
 
   // Validate input
@@ -91,6 +129,7 @@ export async function extractFrames(input: ExtractFramesInput): Promise<ExtractF
   }
 
   let tempDir: string | null = null;
+  const usePersistentOutput = !!options.output_dir;
 
   try {
     // Get video metadata first
@@ -109,7 +148,38 @@ export async function extractFrames(input: ExtractFramesInput): Promise<ExtractF
       };
     }
 
-    // Extract frames
+    // Check for existing frames in output directory
+    if (usePersistentOutput) {
+      const existingFramePaths = getExistingFrames(options.output_dir!);
+
+      if (existingFramePaths.length > 0) {
+        // Reuse existing frames - no need to extract again
+        const frames = readExistingFramesFromDisk(
+          existingFramePaths,
+          options.interval,
+          options.start_time
+        );
+
+        return {
+          success: true,
+          metadata,
+          frames,
+          extraction_info: {
+            total_frames_extracted: frames.length,
+            interval_used: options.interval,
+            quality: options.quality,
+            width: options.width,
+          },
+          frame_paths: existingFramePaths,
+          output_directory: options.output_dir,
+        };
+      }
+
+      // No existing frames, ensure directory exists for new extraction
+      ensureDir(options.output_dir!);
+    }
+
+    // Extract frames (only if no existing frames found)
     const result = await ffmpegExtractFrames(resolvedPath, {
       interval: options.interval,
       maxFrames: options.max_frames,
@@ -117,15 +187,19 @@ export async function extractFrames(input: ExtractFramesInput): Promise<ExtractF
       width: options.width,
       startTime: options.start_time,
       endTime: options.end_time,
+      outputDir: options.output_dir,
     });
 
     tempDir = result.tempDir;
     const frames = result.frames;
+    const framePaths = result.framePaths;
 
-    // Cleanup temp directory
-    cleanupTempDir(tempDir);
+    // Cleanup temp directory only if NOT using persistent output
+    if (!usePersistentOutput) {
+      cleanupTempDir(tempDir);
+    }
 
-    return {
+    const response: ExtractFramesResponse = {
       success: true,
       metadata,
       frames,
@@ -136,9 +210,17 @@ export async function extractFrames(input: ExtractFramesInput): Promise<ExtractF
         width: options.width,
       },
     };
+
+    // Add persistent output information if applicable
+    if (usePersistentOutput && framePaths) {
+      response.frame_paths = framePaths;
+      response.output_directory = options.output_dir;
+    }
+
+    return response;
   } catch (error) {
-    // Cleanup on error
-    if (tempDir) {
+    // Cleanup on error (only if NOT using persistent output)
+    if (tempDir && !usePersistentOutput) {
       cleanupTempDir(tempDir);
     }
 
@@ -193,6 +275,10 @@ IMPORTANT - How to present video analysis:
       end_time: {
         type: 'number',
         description: 'End extraction at this time in seconds (optional)',
+      },
+      output_dir: {
+        type: 'string',
+        description: 'Directory to save frames persistently (optional). If not provided, frames are temporary and will be deleted after extraction.',
       },
     },
     required: ['path'],

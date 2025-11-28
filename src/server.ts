@@ -23,6 +23,8 @@ import {
   checkFfmpegAvailable,
   checkFfprobeAvailable,
 } from './processors/ffmpeg-processor.js';
+import { resolveVideoPath } from './utils/validators.js';
+import path from 'path';
 
 // Server instance
 let server: Server;
@@ -101,14 +103,20 @@ export async function startServer(): Promise<void> {
         }
 
         case 'extract_frames': {
+          // Resolve video path to determine the frames directory
+          const videoPath = args?.path as string;
+          const resolvedPath = resolveVideoPath(videoPath);
+          const framesDir = resolvedPath ? path.join(path.dirname(resolvedPath), 'frames') : undefined;
+
           const result = await extractFrames({
-            path: args?.path as string,
+            path: videoPath,
             interval: args?.interval as number | undefined,
             max_frames: args?.max_frames as number | undefined,
             quality: args?.quality as number | undefined,
             width: args?.width as number | undefined,
             start_time: args?.start_time as number | undefined,
             end_time: args?.end_time as number | undefined,
+            output_dir: framesDir,
           });
 
           if (result.success) {
