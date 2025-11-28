@@ -37,12 +37,13 @@ export function fileExists(filePath: string): boolean {
 }
 
 /**
- * Resolve a video path - handles relative paths and missing extensions
+ * Resolve a video path - handles relative paths, missing extensions, and timestamp folders
  *
  * Logic:
  * 1. If path is absolute and exists → use it
- * 2. If path is relative → prepend VIDEO_BASE_DIR
- * 3. If no extension → try all supported extensions
+ * 2. If path is a timestamp folder → look for video inside
+ * 3. If path is relative → prepend VIDEO_BASE_DIR
+ * 4. If no extension → try all supported extensions
  *
  * @returns The resolved absolute path or null if not found
  */
@@ -70,8 +71,29 @@ export function resolveVideoPath(inputPath: string): string | null {
     return null;
   };
 
+  // Helper to find video inside a folder (for timestamp-based structure)
+  const findVideoInFolder = (folderPath: string): string | null => {
+    if (!fs.existsSync(folderPath) || !fs.statSync(folderPath).isDirectory()) {
+      return null;
+    }
+
+    // Look for video files in the folder
+    const files = fs.readdirSync(folderPath);
+    for (const file of files) {
+      const ext = path.extname(file).toLowerCase() as SupportedVideoFormat;
+      if (SUPPORTED_VIDEO_FORMATS.includes(ext)) {
+        return path.join(folderPath, file);
+      }
+    }
+    return null;
+  };
+
   // Case 1: Absolute path
   if (path.isAbsolute(inputPath)) {
+    // Check if it's a directory (timestamp folder)
+    if (fs.existsSync(inputPath) && fs.statSync(inputPath).isDirectory()) {
+      return findVideoInFolder(inputPath);
+    }
     return findWithExtensions(inputPath);
   }
 
@@ -79,17 +101,29 @@ export function resolveVideoPath(inputPath: string): string | null {
   if (inputPath.startsWith('~')) {
     const homeDir = process.env.HOME || process.env.USERPROFILE || '';
     const expandedPath = path.join(homeDir, inputPath.slice(1));
+    if (fs.existsSync(expandedPath) && fs.statSync(expandedPath).isDirectory()) {
+      return findVideoInFolder(expandedPath);
+    }
     return findWithExtensions(expandedPath);
   }
 
   // Case 3: Relative path - use VIDEO_BASE_DIR if set
   if (baseDir) {
     const fullPath = path.join(baseDir, inputPath);
+
+    // Check if it's a directory (timestamp folder)
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory()) {
+      return findVideoInFolder(fullPath);
+    }
+
     return findWithExtensions(fullPath);
   }
 
   // Case 4: No base dir, try relative to cwd
   const cwdPath = path.resolve(inputPath);
+  if (fs.existsSync(cwdPath) && fs.statSync(cwdPath).isDirectory()) {
+    return findVideoInFolder(cwdPath);
+  }
   return findWithExtensions(cwdPath);
 }
 
