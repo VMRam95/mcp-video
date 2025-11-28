@@ -165,8 +165,9 @@ export async function extractFrames(
     width?: number;
     startTime?: number;
     endTime?: number;
+    outputDir?: string;
   } = {}
-): Promise<{ frames: ExtractedFrame[]; tempDir: string }> {
+): Promise<{ frames: ExtractedFrame[]; tempDir: string; framePaths?: string[] }> {
   const normalizedPath = normalizePath(filePath);
 
   const {
@@ -176,10 +177,12 @@ export async function extractFrames(
     width = 800,
     startTime,
     endTime,
+    outputDir,
   } = options;
 
-  // Create temp directory for frames
-  const tempDir = createTempDir();
+  // Determine output directory - use provided or create temp
+  const useCustomDir = !!outputDir;
+  const tempDir = useCustomDir ? outputDir : createTempDir();
   const outputPattern = path.join(tempDir, 'frame_%04d.jpg');
 
   try {
@@ -223,6 +226,7 @@ export async function extractFrames(
     // Read extracted frames
     const frameFiles = listFilesWithExtension(tempDir, '.jpg');
     const frames: ExtractedFrame[] = [];
+    const framePaths: string[] = [];
 
     for (let i = 0; i < frameFiles.length; i++) {
       const frameFile = frameFiles[i];
@@ -235,12 +239,29 @@ export async function extractFrames(
         image: readFileAsBase64(frameFile),
         mime_type: 'image/jpeg',
       });
+
+      // Store frame path if using custom directory
+      if (useCustomDir) {
+        framePaths.push(frameFile);
+      }
     }
 
-    return { frames, tempDir };
+    const result: { frames: ExtractedFrame[]; tempDir: string; framePaths?: string[] } = {
+      frames,
+      tempDir,
+    };
+
+    // Include frame paths only when using custom directory
+    if (useCustomDir && framePaths.length > 0) {
+      result.framePaths = framePaths;
+    }
+
+    return result;
   } catch (error) {
-    // Cleanup on error
-    cleanupTempDir(tempDir);
+    // Cleanup on error only if NOT using custom directory
+    if (!useCustomDir) {
+      cleanupTempDir(tempDir);
+    }
     throw error;
   }
 }
@@ -318,6 +339,52 @@ function runFfmpeg(args: string[]): Promise<void> {
       reject(new Error(`Failed to run ffmpeg: ${error.message}`));
     });
   });
+}
+
+/**
+ * Compress a video file using H.264 codec
+ */
+export async function compressVideo(
+  inputPath: string,
+  outputPath: string,
+  options: { crf?: number; preset?: string } = {}
+): Promise<{
+  success: boolean;
+  outputPath: string;
+  originalSize: number;
+  compressedSize: number;
+}> {
+  const normalizedInputPath = normalizePath(inputPath);
+  const normalizedOutputPath = normalizePath(outputPath);
+  const crf = options.crf ?? 28;
+  const preset = options.preset ?? 'medium';
+
+  // Get original file size
+  const originalSize = fs.statSync(normalizedInputPath).size;
+
+  // Build ffmpeg arguments
+  const args = [
+    '-i', normalizedInputPath,
+    '-c:v', 'libx264',
+    '-crf', crf.toString(),
+    '-preset', preset,
+    '-c:a', 'aac',
+    '-b:a', '128k',
+    normalizedOutputPath,
+  ];
+
+  // Run ffmpeg
+  await runFfmpeg(args);
+
+  // Get compressed file size
+  const compressedSize = fs.statSync(normalizedOutputPath).size;
+
+  return {
+    success: true,
+    outputPath: normalizedOutputPath,
+    originalSize,
+    compressedSize,
+  };
 }
 
 /**
