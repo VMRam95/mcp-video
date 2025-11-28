@@ -142,7 +142,7 @@ function showToast(title, message, type = 'success') {
 }
 
 /**
- * Copy video filename to clipboard (just the filename, not full path)
+ * Copy video folder name (timestamp) to clipboard for Claude
  */
 async function copyPathToClipboard() {
   const path = uploadedFilePath;
@@ -151,16 +151,18 @@ async function copyPathToClipboard() {
     return;
   }
 
-  // Extract just the filename from the full path
-  const filename = path.split('/').pop() || path;
+  // Extract the folder name (timestamp) from the path
+  // Path format: /Users/.../mcp-video/2025-11-28T11-39-09-666Z/video.mp4
+  const pathParts = path.split('/');
+  const folderName = pathParts[pathParts.length - 2] || path;
 
   try {
-    await navigator.clipboard.writeText(filename);
-    showToast('Copiado al portapapeles', `"${filename}" listo para Claude`, 'success');
+    await navigator.clipboard.writeText(folderName);
+    showToast('Copiado al portapapeles', `"${folderName}" listo para Claude`, 'success');
   } catch (err) {
     // Fallback for older browsers
     const textArea = document.createElement('textarea');
-    textArea.value = filename;
+    textArea.value = folderName;
     textArea.style.position = 'fixed';
     textArea.style.opacity = '0';
     document.body.appendChild(textArea);
@@ -168,7 +170,7 @@ async function copyPathToClipboard() {
 
     try {
       document.execCommand('copy');
-      showToast('Copiado al portapapeles', `"${filename}" listo para Claude`, 'success');
+      showToast('Copiado al portapapeles', `"${folderName}" listo para Claude`, 'success');
     } catch (e) {
       showToast('Error', 'No se pudo copiar al portapapeles', 'error');
     }
