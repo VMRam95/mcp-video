@@ -380,6 +380,20 @@ async function handleApi(
         break;
       }
 
+      case '/api/shutdown': {
+        console.log('Shutdown requested - stopping server');
+
+        // Send response before shutting down
+        sendJson(res, { success: true, message: 'Server shutting down' });
+
+        // Schedule shutdown after response is sent
+        setTimeout(() => {
+          console.log('Shutting down MCP Video web server...');
+          process.exit(0);
+        }, 500);
+        break;
+      }
+
       default:
         sendJson(res, { error: 'Not found' }, 404);
     }
