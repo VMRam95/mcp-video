@@ -5,6 +5,16 @@
 
 // DOM Elements
 const elements = {
+  // Header
+  btnQuit: document.getElementById('btnQuit'),
+
+  // Confirm Modal
+  confirmModal: document.getElementById('confirmModal'),
+  confirmTitle: document.getElementById('confirmTitle'),
+  confirmMessage: document.getElementById('confirmMessage'),
+  btnConfirmCancel: document.getElementById('btnConfirmCancel'),
+  btnConfirmOk: document.getElementById('btnConfirmOk'),
+
   // Wizard
   wizardSlides: document.getElementById('wizardSlides'),
   steps: document.querySelectorAll('.step'),
@@ -438,6 +448,64 @@ function closeModal() {
 }
 
 /**
+ * Show confirm modal
+ */
+let confirmResolve = null;
+
+function showConfirmModal(title, message) {
+  elements.confirmTitle.textContent = title;
+  elements.confirmMessage.textContent = message;
+  elements.confirmModal.style.display = 'flex';
+
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+  });
+}
+
+/**
+ * Close confirm modal
+ */
+function closeConfirmModal(result) {
+  elements.confirmModal.style.display = 'none';
+  if (confirmResolve) {
+    confirmResolve(result);
+    confirmResolve = null;
+  }
+}
+
+/**
+ * Quit application - stop server and close window
+ */
+async function quitApplication() {
+  const confirmed = await showConfirmModal(
+    'Quit Application',
+    'Are you sure you want to quit? This will stop the server and close the application.'
+  );
+
+  if (!confirmed) return;
+
+  try {
+    // Call shutdown endpoint
+    await fetch('/api/shutdown', { method: 'POST' });
+
+    // Show toast
+    showToast('Goodbye', 'Application shutting down...', 'success');
+
+    // Give time for toast to show, then close window
+    setTimeout(() => {
+      window.close();
+      // If window.close() doesn't work (browser security), show message
+      setTimeout(() => {
+        showToast('Server Stopped', 'You can close this tab now.', 'success');
+      }, 500);
+    }, 1000);
+  } catch {
+    // Ignore errors as server might already be down
+    window.close();
+  }
+}
+
+/**
  * Setup drag and drop handlers
  */
 function setupDragAndDrop() {
@@ -494,6 +562,14 @@ function setupDragAndDrop() {
 function init() {
   // Setup drag and drop
   setupDragAndDrop();
+
+  // Quit button
+  elements.btnQuit.addEventListener('click', quitApplication);
+
+  // Confirm modal buttons
+  elements.btnConfirmCancel.addEventListener('click', () => closeConfirmModal(false));
+  elements.btnConfirmOk.addEventListener('click', () => closeConfirmModal(true));
+  elements.confirmModal.querySelector('.confirm-modal-backdrop').addEventListener('click', () => closeConfirmModal(false));
 
   // Slide 1 buttons
   elements.btnClearFile.addEventListener('click', (e) => {

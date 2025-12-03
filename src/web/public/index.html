@@ -9,8 +9,18 @@
 <body>
   <div class="container">
     <header>
-      <h1>MCP Video</h1>
-      <p class="subtitle">Video Analysis Tool</p>
+      <div class="header-content">
+        <div class="header-title">
+          <h1>MCP Video</h1>
+          <p class="subtitle">Video Analysis Tool</p>
+        </div>
+        <button id="btnQuit" class="btn-quit" title="Stop server and close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="quit-icon">
+            <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+          </svg>
+          Quit
+        </button>
+      </div>
     </header>
 
     <!-- Step Indicators -->
@@ -248,6 +258,24 @@
 
   <!-- Toast Container -->
   <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Confirm Modal -->
+  <div id="confirmModal" class="confirm-modal" style="display: none;">
+    <div class="confirm-modal-backdrop"></div>
+    <div class="confirm-modal-content">
+      <div class="confirm-modal-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+        </svg>
+      </div>
+      <h3 id="confirmTitle">Quit Application</h3>
+      <p id="confirmMessage">Are you sure you want to quit? This will stop the server and close the application.</p>
+      <div class="confirm-modal-buttons">
+        <button id="btnConfirmCancel" class="btn btn-secondary">Cancel</button>
+        <button id="btnConfirmOk" class="btn btn-danger">Quit</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
